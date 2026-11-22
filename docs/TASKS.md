@@ -5,7 +5,7 @@ Status values: `todo`, `review (PR #n)`, `done (PR #n)`, `blocked: <reason>`. Si
 ## M1 Foundations (target 21 Dec 2026)
 
 ### FC-001 Result type and typed errors
-- Status: review
+- Status: done (PR #1)
 - Size: S
 - Depends on: none
 - Goal: `src/util/result.ts` with `Result<T, E>`, `ok()`, `err()`, `isOk()`, `map()`, `andThen()`, `unwrapOr()`; `src/util/errors.ts` with a `ForgeError` base (code, message, cause) and codes `INVALID_INPUT`, `NOT_FOUND`, `UNAUTHORIZED`, `RATE_LIMITED`, `TIMEOUT`, `UPSTREAM`, `BUDGET_EXCEEDED`.
