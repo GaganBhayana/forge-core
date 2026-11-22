@@ -38,3 +38,17 @@ test('isForgeError checks type and optional code', () => {
   assert.equal(isForgeError(new Error('plain')), false);
   assert.equal(isForgeError('TIMEOUT'), false);
 });
+
+test('toJSON keeps code, message, hint and details but drops the cause', () => {
+  const cause = { headers: { authorization: 'token secret-value' } };
+  const error = new ForgeError('RATE_LIMITED', 'slow down', { cause, retryAfterMs: 1000, details: { route: '/repos' } });
+  const json = JSON.parse(JSON.stringify(error)) as Record<string, unknown>;
+  assert.deepEqual(json, {
+    name: 'ForgeError',
+    code: 'RATE_LIMITED',
+    message: 'slow down',
+    retryAfterMs: 1000,
+    details: { route: '/repos' },
+  });
+  assert.equal(JSON.stringify(error).includes('secret-value'), false);
+});

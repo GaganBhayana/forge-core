@@ -65,3 +65,11 @@ test('fromPromise captures resolved values and thrown errors', async () => {
   assert.equal(result.ok, false);
   assert.equal(result.ok ? undefined : result.error, boom);
 });
+
+test('fromPromise also captures a synchronous throw from the callback', async () => {
+  const result = await fromPromise((() => {
+    throw new TypeError('sync failure');
+  }) as () => Promise<never>);
+  assert.equal(result.ok, false);
+  assert.ok(!result.ok && result.error instanceof TypeError);
+});

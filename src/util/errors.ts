@@ -36,6 +36,20 @@ export class ForgeError extends Error {
     this.details = options.details ?? {};
   }
 
+  /**
+   * Plain JSON for structured logs. The cause is left out on purpose:
+   * it can hold request objects with auth headers.
+   */
+  toJSON(): { name: string; code: ErrorCode; message: string; retryAfterMs?: number; details: Readonly<Record<string, unknown>> } {
+    return {
+      name: this.name,
+      code: this.code,
+      message: this.message,
+      ...(this.retryAfterMs === undefined ? {} : { retryAfterMs: this.retryAfterMs }),
+      details: this.details,
+    };
+  }
+
   /** True for codes where a later retry may succeed. */
   get retryable(): boolean {
     return this.code === 'RATE_LIMITED' || this.code === 'TIMEOUT' || this.code === 'UPSTREAM';
