@@ -62,6 +62,15 @@ test('child loggers add bound fields without changing the parent', () => {
   assert.equal(c?.['pr'], undefined);
 });
 
+test('child loggers inherit the parent level and sink', () => {
+  const memory = memorySink();
+  const child = createLogger({ level: 'warn', sink: memory.sink, now }).child({ pr: 1 });
+  child.info('dropped');
+  child.warn('kept');
+  assert.equal(child.level, 'warn');
+  assert.deepEqual(memory.records().map((r) => r['msg']), ['kept']);
+});
+
 test('fields cannot overwrite time, level or msg', () => {
   const memory = memorySink();
   const log = createLogger({ sink: memory.sink, now, fields: { level: 'debug' } });
@@ -88,6 +97,50 @@ test('redacts secrets in bound fields, call fields and the message', () => {
     request: { headers: { authorization: REDACTED } },
     items: [{ password: REDACTED }],
   });
+});
+
+test('a field that cannot be serialized gives a fallback line instead of throwing', () => {
+  const memory = memorySink();
+  const log = createLogger({ sink: memory.sink, now });
+  const token = `ghp_${'q'.repeat(36)}`;
+  const bad = {
+    toJSON(): never {
+      throw new Error(`cannot serialize ${token}`);
+    },
+  };
+  assert.doesNotThrow(() => log.error(`failed with ${token}`, { bad }));
+  assert.deepEqual(memory.records()[0], {
+    time: '2026-11-23T04:10:00.000Z',
+    level: 'error',
+    msg: `failed with ${REDACTED}`,
+    logError: `fields not serializable: cannot serialize ${REDACTED}`,
+  });
+});
+
+test('a throwing getter in the fields gives a fallback line', () => {
+  const memory = memorySink();
+  const log = createLogger({ sink: memory.sink, now });
+  const fields = Object.defineProperty({}, 'lazy', {
+    enumerable: true,
+    get(): never {
+      throw new Error('getter failed');
+    },
+  });
+  assert.doesNotThrow(() => log.warn('w', fields));
+  assert.equal(memory.records()[0]?.['logError'], 'fields not serializable: getter failed');
+});
+
+test('an invalid clock value falls back to the system time', () => {
+  const memory = memorySink();
+  const log = createLogger({ sink: memory.sink, now: () => Number.NaN });
+  log.info('still written');
+  const time = memory.records()[0]?.['time'];
+  assert.equal(typeof time, 'string');
+  assert.ok(!Number.isNaN(Date.parse(String(time))));
+});
+
+test('unknown levels are rejected as programmer errors', () => {
+  assert.throws(() => createLogger({ level: 'verbose' as never }), TypeError);
 });
 
 test('parseLogLevel accepts known names only', () => {

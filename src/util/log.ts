@@ -1,4 +1,4 @@
-import { redact } from './redact.ts';
+import { redact, redactString } from './redact.ts';
 
 /** Log levels from most to least verbose. */
 export const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
@@ -42,9 +42,15 @@ const stdoutSink: LogSink = (line) => {
 /**
  * Creates a logger that writes `{"time","level","msg",...fields}` as one JSON line per call.
  * Call fields override bound fields; `time`, `level` and `msg` cannot be overridden.
+ * Logging never throws because of its fields: if they cannot be serialized, a short line
+ * with the message and a `logError` field is written instead.
+ * Throws a `TypeError` for an unknown `level`.
  */
 export function createLogger(options: LoggerOptions = {}): Logger {
   const level = options.level ?? 'info';
+  if (!LOG_LEVELS.includes(level)) {
+    throw new TypeError(`unknown log level ${JSON.stringify(level)}; expected one of ${LOG_LEVELS.join(', ')}`);
+  }
   const sink = options.sink ?? stdoutSink;
   const now = options.now ?? Date.now;
   const bound = options.fields ?? {};
@@ -52,11 +58,7 @@ export function createLogger(options: LoggerOptions = {}): Logger {
 
   const write = (lineLevel: LogLevel, msg: string, fields: LogFields = {}): void => {
     if (LOG_LEVELS.indexOf(lineLevel) < threshold) return;
-    const record: Record<string, unknown> = { time: new Date(now()).toISOString(), level: lineLevel, msg };
-    for (const [key, value] of Object.entries({ ...bound, ...fields })) {
-      if (!Object.hasOwn(record, key)) record[key] = value;
-    }
-    sink(JSON.stringify(redact(record)));
+    sink(formatLine(lineLevel, msg, [bound, fields], now));
   };
 
   return {
@@ -67,6 +69,31 @@ export function createLogger(options: LoggerOptions = {}): Logger {
     error: (msg, fields) => write('error', msg, fields),
     child: (fields) => createLogger({ level, sink, now, fields: { ...bound, ...fields } }),
   };
+}
+
+/** Builds the JSON line for one record, falling back to a minimal line if the fields can't be serialized. */
+function formatLine(level: LogLevel, msg: string, layers: readonly LogFields[], now: () => number): string {
+  const time = safeTime(now);
+  try {
+    const merged: Record<string, unknown> = Object.assign({}, ...layers);
+    const record: Record<string, unknown> = { time, level, msg };
+    for (const [key, value] of Object.entries(merged)) {
+      if (!Object.hasOwn(record, key)) record[key] = value;
+    }
+    return JSON.stringify(redact(record));
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : 'unknown error';
+    return JSON.stringify({ time, level, msg: redactString(msg), logError: `fields not serializable: ${redactString(reason)}` });
+  }
+}
+
+/** ISO time from `now`, or the system time if `now` throws or returns an invalid value. */
+function safeTime(now: () => number): string {
+  try {
+    return new Date(now()).toISOString();
+  } catch {
+    return new Date().toISOString();
+  }
 }
 
 /** Parses a level name, for example from an environment variable. Unknown names give `undefined`. */
