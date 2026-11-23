@@ -12,7 +12,7 @@ Status values: `todo`, `review (PR #n)`, `done (PR #n)`, `blocked: <reason>`. Si
 - Acceptance: unit tests for every helper including chaining an error through `andThen`; exported from `src/index.ts`.
 
 ### FC-002 Structured logger with secret redaction
-- Status: review
+- Status: review (PR #2)
 - Size: S
 - Depends on: FC-001
 - Goal: `src/util/log.ts`: JSON-lines logger with levels, child loggers with bound fields, and a redactor that masks values of keys like `token`, `secret`, `password`, `authorization`, `apiKey` and strings matching GitHub token prefixes (`ghp_`, `ghs_`, `github_pat_`) and `sk-` keys.
