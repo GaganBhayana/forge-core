@@ -2,12 +2,30 @@
 export const REDACTED = '[REDACTED]';
 
 /** Key endings (lowercase, without `-` or `_`) whose values are always masked. */
-const SENSITIVE_KEY_ENDINGS = ['token', 'secret', 'password', 'apikey', 'privatekey'];
-/** Whole keys (lowercase, without `-` or `_`) whose values are always masked. */
-const SENSITIVE_KEYS = new Set(['authorization', 'proxyauthorization', 'cookie', 'setcookie']);
+const SENSITIVE_KEY_ENDINGS = [
+  'token',
+  'secret',
+  'secrets',
+  'password',
+  'passwords',
+  'credentials',
+  'apikey',
+  'privatekey',
+];
+/**
+ * Whole keys (lowercase, without `-` or `_`) whose values are always masked.
+ * `tokens` is exact rather than an ending so counters like `maxTokens` stay visible.
+ */
+const SENSITIVE_KEYS = new Set(['authorization', 'proxyauthorization', 'cookie', 'setcookie', 'tokens']);
 
 /** GitHub tokens (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) and `sk-` API keys. */
 const SECRET_PATTERN = /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})|\bsk-[A-Za-z0-9_-]{16,}/g;
+
+/**
+ * PEM private key blocks, such as a GitHub App key. A block cut off before its END line
+ * is masked up to the end of the text.
+ */
+const PRIVATE_KEY_PATTERN = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|$)/g;
 
 const MAX_DEPTH = 32;
 
@@ -20,9 +38,9 @@ export function isSensitiveKey(key: string): boolean {
   return SENSITIVE_KEYS.has(normal) || SENSITIVE_KEY_ENDINGS.some((ending) => normal.endsWith(ending));
 }
 
-/** Replaces every token-shaped substring of `text` with {@link REDACTED}. */
+/** Replaces every token-shaped substring and PEM private key block in `text` with {@link REDACTED}. */
 export function redactString(text: string): string {
-  return text.replace(SECRET_PATTERN, REDACTED);
+  return text.replace(PRIVATE_KEY_PATTERN, REDACTED).replace(SECRET_PATTERN, REDACTED);
 }
 
 /**

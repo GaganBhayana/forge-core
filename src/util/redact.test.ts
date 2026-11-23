@@ -9,7 +9,21 @@ const PAT = `github_pat_${'11AAAA_bbbb'.repeat(4)}`;
 const SK = `sk-ant-${'x7Y'.repeat(10)}`;
 
 test('sensitive keys match by ending or exact name, ignoring case, - and _', () => {
-  for (const key of ['token', 'accessToken', 'client_secret', 'PASSWORD', 'apiKey', 'x-api-key', 'Authorization', 'cookie', 'private_key']) {
+  for (const key of [
+    'token',
+    'accessToken',
+    'tokens',
+    'client_secret',
+    'secrets',
+    'PASSWORD',
+    'passwords',
+    'credentials',
+    'apiKey',
+    'x-api-key',
+    'Authorization',
+    'cookie',
+    'private_key',
+  ]) {
     assert.equal(isSensitiveKey(key), true, key);
   }
   for (const key of ['maxTokens', 'inputTokens', 'tokenCount', 'author', 'user', 'keyId']) {
@@ -21,6 +35,21 @@ test('redactString masks GitHub tokens and sk- keys inside surrounding text', ()
   assert.equal(redactString(`using ${GHP} now`), `using ${REDACTED} now`);
   assert.equal(redactString(`${GHS},${PAT}`), `${REDACTED},${REDACTED}`);
   assert.equal(redactString(`key=${SK}`), `key=${REDACTED}`);
+});
+
+test('redactString masks token credentials inside URLs', () => {
+  assert.equal(
+    redactString(`https://x-access-token:${GHS}@github.com/o/r.git`),
+    `https://x-access-token:${REDACTED}@github.com/o/r.git`,
+  );
+});
+
+test('redactString masks PEM private key blocks, including truncated ones', () => {
+  const pem = '-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA\nq0z9\n-----END RSA PRIVATE KEY-----';
+  assert.equal(redactString(`key: ${pem} loaded`), `key: ${REDACTED} loaded`);
+  assert.equal(redactString('-----BEGIN PRIVATE KEY-----\nMIIEvQIBADAN'), REDACTED);
+  const publicKey = '-----BEGIN PUBLIC KEY-----\nMIIBIjAN\n-----END PUBLIC KEY-----';
+  assert.equal(redactString(publicKey), publicKey);
 });
 
 test('redactString leaves short or look-alike text alone', () => {
@@ -49,10 +78,12 @@ test('redact masks sensitive keys in nested objects and arrays', () => {
 });
 
 test('redact masks a whole object or array under a sensitive key', () => {
-  assert.deepEqual(redact({ secret: { a: 1 }, tokens: undefined, password: ['x'] }), {
+  assert.deepEqual(redact({ secret: { a: 1 }, token: undefined, apiKey: null, password: ['x'], secrets: { a: 'plain' } }), {
     secret: REDACTED,
-    tokens: undefined,
+    token: undefined,
+    apiKey: REDACTED,
     password: REDACTED,
+    secrets: REDACTED,
   });
 });
 
