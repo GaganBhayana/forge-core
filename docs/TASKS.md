@@ -19,7 +19,7 @@ Status values: `todo`, `review (PR #n)`, `done (PR #n)`, `blocked: <reason>`. Si
 - Acceptance: tests show nested objects and arrays are redacted; logger writes to an injectable sink.
 
 ### FC-003 Retry with backoff and a clock abstraction
-- Status: todo
+- Status: done (PR #3)
 - Size: S
 - Depends on: FC-001
 - Goal: `src/util/clock.ts` (`Clock` interface, system clock, fake clock for tests); `src/util/retry.ts` with exponential backoff, full jitter, max attempts, `shouldRetry` predicate and respect for a `retryAfterMs` hint.
