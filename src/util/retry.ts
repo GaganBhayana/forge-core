@@ -37,7 +37,12 @@ export interface RetryOptions<E> extends BackoffOptions {
   readonly maxRetryAfterMs?: number;
   /** Time source for waits. Defaults to the system clock. */
   readonly clock?: Clock;
-  /** Called before each wait, for logging. */
+  /**
+   * Called before each wait, for logging. It is not called when no wait follows:
+   * on success, when attempts run out, when `shouldRetry` returns false, or when a
+   * `retryAfterMs` hint is longer than `maxRetryAfterMs`. An exception thrown here
+   * propagates out of {@link retry}.
+   */
   readonly onRetry?: (info: RetryInfo<E>) => void;
 }
 
@@ -56,14 +61,20 @@ function assertNonNegative(name: string, value: number): void {
 
 /**
  * Delay before retry number `retry` (1 for the first retry) using exponential
- * backoff with full jitter: a random value in `[0, min(maxDelayMs, baseDelayMs * 2^(retry-1)))`.
+ * backoff with full jitter: `floor(cap * random())` where
+ * `cap = min(maxDelayMs, baseDelayMs * 2^(retry-1))`, so the result is an integer
+ * in `[0, cap]`. `random()` is clamped to [0, 1] and a non-finite value counts as 0,
+ * so the result is always finite.
  */
 export function backoffDelay(retry: number, options: BackoffOptions = {}): number {
   const base = options.baseDelayMs ?? DEFAULTS.baseDelayMs;
   const max = options.maxDelayMs ?? DEFAULTS.maxDelayMs;
   const random = options.random ?? Math.random;
-  const cap = Math.min(max, base * 2 ** Math.max(0, retry - 1));
-  const r = Math.min(Math.max(random(), 0), 1);
+  const growth = 2 ** Math.max(0, retry - 1);
+  // Avoid 0 * Infinity (NaN) when the exponent overflows.
+  const cap = base === 0 ? 0 : Math.min(max, base * growth);
+  const sample = random();
+  const r = Number.isFinite(sample) ? Math.min(Math.max(sample, 0), 1) : 0;
   return Math.floor(cap * r);
 }
 

@@ -33,6 +33,12 @@ test('backoffDelay applies full jitter across [0, cap]', () => {
   assert.equal(backoffDelay(3, { baseDelayMs: 100, random: () => -1 }), 0);
 });
 
+test('backoffDelay stays finite for a NaN random and an overflowing exponent', () => {
+  assert.equal(backoffDelay(2, { baseDelayMs: 100, random: () => Number.NaN }), 0);
+  assert.equal(backoffDelay(1_100, { baseDelayMs: 0, random: () => 1 }), 0);
+  assert.equal(backoffDelay(1_100, { baseDelayMs: 100, maxDelayMs: 5_000, random: () => 1 }), 5_000);
+});
+
 test('retry succeeds on the first attempt without sleeping', async () => {
   const clock = new FakeClock({ autoAdvance: true });
   const { fn, calls } = failing(0, upstream);
@@ -140,6 +146,34 @@ test('a hint longer than maxRetryAfterMs returns the error instead of waiting', 
   assert.equal(result.ok, false);
   assert.deepEqual(calls, [1]);
   assert.deepEqual(clock.sleeps, []);
+});
+
+test('a hint equal to maxRetryAfterMs is still waited on', async () => {
+  const clock = new FakeClock({ autoAdvance: true });
+  const { fn, calls } = failing(1, () => new ForgeError('RATE_LIMITED', 'slow down', { retryAfterMs: 60_000 }));
+  const result = await retry(fn, { clock, maxRetryAfterMs: 60_000, random: () => 1 });
+  assert.deepEqual(result, ok('done'));
+  assert.deepEqual(calls, [1, 2]);
+  assert.deepEqual(clock.sleeps, [60_000]);
+});
+
+test('maxAttempts of 1 calls once and never sleeps', async () => {
+  const clock = new FakeClock({ autoAdvance: true });
+  const { fn, calls } = failing(5, upstream);
+  const seen: RetryInfo<ForgeError>[] = [];
+  const result = await retry(fn, { clock, maxAttempts: 1, onRetry: (info) => seen.push(info) });
+  assert.equal(result.ok, false);
+  assert.deepEqual(calls, [1]);
+  assert.deepEqual(clock.sleeps, []);
+  assert.deepEqual(seen, []);
+});
+
+test('onRetry is not called when a hint is too long', async () => {
+  const clock = new FakeClock({ autoAdvance: true });
+  const { fn } = failing(1, () => new ForgeError('RATE_LIMITED', 'later', { retryAfterMs: 120_000 }));
+  let called = false;
+  await retry(fn, { clock, onRetry: () => { called = true; } });
+  assert.equal(called, false);
 });
 
 test('retryAfterHint reads only usable numbers', () => {
