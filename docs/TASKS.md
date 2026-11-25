@@ -26,7 +26,7 @@ Status values: `todo`, `review (PR #n)`, `done (PR #n)`, `blocked: <reason>`. Si
 - Acceptance: tests with the fake clock prove the delay sequence and that non-retryable errors stop immediately.
 
 ### FC-004 Minimal runtime schema validator
-- Status: review
+- Status: review (PR #4)
 - Size: M
 - Depends on: FC-001
 - Goal: `src/schema/` with builders `object`, `string` (min, max, pattern), `number` (int, min, max), `boolean`, `enumOf`, `array`, `optional`, `nullable`, `literal`, and `parse(schema, value): Result<T, SchemaIssue[]>` with paths like `rules[2].severity`. Static type inference via `Infer<typeof schema>`.
