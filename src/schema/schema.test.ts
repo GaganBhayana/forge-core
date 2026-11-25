@@ -32,6 +32,24 @@ const cases: readonly Case[] = [
   { name: 'string max', schema: string({ max: 2 }), value: 'abc', expect: { codes: ['too_big'] } },
   { name: 'string pattern pass', schema: string({ pattern: /^[a-z]+$/ }), value: 'abc', expect: { ok: 'abc' } },
   { name: 'string pattern fail', schema: string({ pattern: /^[a-z]+$/ }), value: 'aB', expect: { codes: ['pattern'] } },
+  {
+    name: 'string pattern must match the whole value',
+    schema: string({ pattern: /[a-z]+/ }),
+    value: 'AB-ab',
+    expect: { codes: ['pattern'] },
+  },
+  {
+    name: 'string pattern alternation is anchored as a group',
+    schema: string({ pattern: /a|ab/ }),
+    value: 'ab',
+    expect: { ok: 'ab' },
+  },
+  {
+    name: 'string pattern ignores the multiline flag',
+    schema: string({ pattern: /^[a-z]+$/m }),
+    value: 'abc\nXYZ',
+    expect: { codes: ['pattern'] },
+  },
   { name: 'number accepts a number', schema: number(), value: 1.5, expect: { ok: 1.5 } },
   { name: 'number rejects a numeric string', schema: number(), value: '1', expect: { codes: ['invalid_type'] } },
   { name: 'number rejects NaN', schema: number(), value: Number.NaN, expect: { codes: ['invalid_type'] } },
@@ -66,6 +84,15 @@ const cases: readonly Case[] = [
   { name: 'nullable rejects undefined', schema: nullable(string()), value: undefined, expect: { codes: ['invalid_type'] } },
   { name: 'object rejects null', schema: object({}), value: null, expect: { codes: ['invalid_type'] } },
   { name: 'object rejects an array', schema: object({}), value: [], expect: { codes: ['invalid_type'] } },
+  { name: 'object rejects a Date', schema: object({}), value: new Date(0), expect: { codes: ['invalid_type'] } },
+  { name: 'object rejects a Map', schema: object({}), value: new Map(), expect: { codes: ['invalid_type'] } },
+  {
+    name: 'object rejects a class instance',
+    schema: object({}),
+    value: new (class Point {})(),
+    expect: { codes: ['invalid_type'] },
+  },
+  { name: 'object accepts a null-prototype object', schema: object({}), value: Object.create(null), expect: { ok: {} } },
   { name: 'object requires keys', schema: object({ a: string() }), value: {}, expect: { codes: ['invalid_type'] } },
   { name: 'object strips unknown keys', schema: object({ a: number() }), value: { a: 1, b: 2 }, expect: { ok: { a: 1 } } },
   {
@@ -189,8 +216,27 @@ test('maxIssues caps the issue list for hostile input', () => {
   assert.equal(defaulted.ok ? 0 : defaulted.error.length, 100);
 });
 
+test('maxIssues also stops object checks early', () => {
+  const three = object({ a: string(), b: string(), c: string() });
+  const keys = parse(three, { a: 1, b: 2, c: 3 }, { maxIssues: 2 });
+  assert.deepEqual(keys.ok ? [] : keys.error.map((issue) => issue.path), ['a', 'b']);
+
+  const strict = object({}, { unknownKeys: 'reject' });
+  const unknown = parse(strict, { x: 1, y: 2, z: 3 }, { maxIssues: 2 });
+  assert.deepEqual(unknown.ok ? [] : unknown.error.map((issue) => issue.path), ['x', 'y']);
+});
+
+test('a non-plain object is described in the message', () => {
+  const result = parse(object({}), new Date(0));
+  assert.equal(result.ok ? '' : result.error[0]?.message, 'expected object, received non-plain object');
+});
+
 test('bad options are programmer errors and throw', () => {
   assert.throws(() => parse(string(), 'a', { maxIssues: 0 }), RangeError);
   assert.throws(() => number({ min: Number.NaN }), RangeError);
   assert.throws(() => array(string(), { max: Infinity }), RangeError);
+  assert.throws(() => string({ min: 5, max: 2 }), /min \(5\) must not be greater than max \(2\)/);
+  assert.throws(() => number({ min: 1, max: 0 }), RangeError);
+  assert.throws(() => array(string(), { min: 2, max: 1 }), RangeError);
+  assert.doesNotThrow(() => string({ min: 2, max: 2 }));
 });

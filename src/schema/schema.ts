@@ -83,6 +83,7 @@ export function formatPath(path: readonly PathSegment[]): string {
 function describe(value: unknown): string {
   if (value === null) return 'null';
   if (Array.isArray(value)) return 'array';
+  if (typeof value === 'object' && !isPlainObject(value)) return 'non-plain object';
   if (typeof value === 'number' && Number.isNaN(value)) return 'NaN';
   return typeof value;
 }
@@ -111,6 +112,15 @@ function assertBound(name: string, value: number | undefined): void {
   }
 }
 
+/** Throws for non-finite bounds or `min > max`: a schema that can never pass is a bug. */
+function assertBounds(options: { readonly min?: number; readonly max?: number }): void {
+  assertBound('min', options.min);
+  assertBound('max', options.max);
+  if (options.min !== undefined && options.max !== undefined && options.min > options.max) {
+    throw new RangeError(`min (${options.min}) must not be greater than max (${options.max})`);
+  }
+}
+
 /** Length limits for {@link string} and {@link array}. */
 export interface LengthOptions {
   readonly min?: number;
@@ -119,7 +129,10 @@ export interface LengthOptions {
 
 /** Options for {@link string}. `min` and `max` count UTF-16 code units. */
 export interface StringOptions extends LengthOptions {
-  /** The whole value must match. Global and sticky flags are dropped. */
+  /**
+   * The whole value must match: the pattern is wrapped as `^(?:pattern)$`.
+   * Global, sticky and multiline flags are dropped so the anchors mean the whole string.
+   */
   readonly pattern?: RegExp;
 }
 
@@ -143,11 +156,11 @@ function checkLength(
 
 /** A string, optionally limited in length and matched against a pattern. */
 export function string(options: StringOptions = {}): Schema<string> {
-  assertBound('min', options.min);
-  assertBound('max', options.max);
-  // A stateless copy: `g` and `y` would make `test` depend on `lastIndex`.
+  assertBounds(options);
+  // A stateless, anchored copy: `g` and `y` would make `test` depend on `lastIndex`,
+  // and `m` would let `$` match before a newline.
   const pattern = options.pattern
-    ? new RegExp(options.pattern.source, options.pattern.flags.replace(/[gy]/g, ''))
+    ? new RegExp(`^(?:${options.pattern.source})$`, options.pattern.flags.replace(/[gym]/g, ''))
     : undefined;
   return make('string', (value, path, issues) => {
     if (typeof value !== 'string') {
@@ -155,7 +168,7 @@ export function string(options: StringOptions = {}): Schema<string> {
     }
     if (!checkLength(value.length, options, 'characters', path, issues)) return INVALID;
     if (pattern && !pattern.test(value)) {
-      return report(issues, 'pattern', path, `expected to match ${pattern}`);
+      return report(issues, 'pattern', path, `expected to match ${options.pattern}`);
     }
     return value;
   });
@@ -170,8 +183,7 @@ export interface NumberOptions {
 
 /** A finite number; `NaN` and infinities are rejected. */
 export function number(options: NumberOptions = {}): Schema<number> {
-  assertBound('min', options.min);
-  assertBound('max', options.max);
+  assertBounds(options);
   return make('number', (value, path, issues) => {
     if (typeof value !== 'number' || !Number.isFinite(value)) {
       return report(issues, 'invalid_type', path, `expected finite number, received ${describe(value)}`);
@@ -220,8 +232,7 @@ export function literal<const V extends string | number | boolean | null>(expect
 
 /** An array whose items all match `item`. Every bad item is reported. */
 export function array<T>(item: Schema<T>, options: LengthOptions = {}): Schema<T[]> {
-  assertBound('min', options.min);
-  assertBound('max', options.max);
+  assertBounds(options);
   return make('array', (value, path, issues) => {
     if (!Array.isArray(value)) {
       return report(issues, 'invalid_type', path, `expected array, received ${describe(value)}`);
@@ -264,17 +275,24 @@ export interface ObjectOptions {
   readonly unknownKeys?: 'strip' | 'reject';
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null) return false;
+  const proto: unknown = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
 /**
- * A plain object with the given keys. The result is a new object holding only
+ * A plain object with the given keys. Its prototype must be `Object.prototype` or
+ * `null`, so arrays, dates, maps and class instances are rejected. The result is a new object holding only
  * known keys; optional keys that are missing or `undefined` are left out.
  */
 export function object<S extends Shape>(shape: S, options: ObjectOptions = {}): Schema<InferShape<S>> {
   const keys = Object.keys(shape);
   return make('object', (value, path, issues) => {
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    if (!isPlainObject(value)) {
       return report(issues, 'invalid_type', path, `expected object, received ${describe(value)}`);
     }
-    const input = value as Record<string, unknown>;
+    const input = value;
     const entries: [string, unknown][] = [];
     let failed = false;
     for (const key of keys) {
