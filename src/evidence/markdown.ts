@@ -32,6 +32,8 @@ export function hasReportMarker(body: string, tool: string): boolean {
  * Renders a report as Markdown for a PR comment: a hidden marker, a summary line,
  * a table sorted by severity and a collapsible section per finding.
  * All text from the report is escaped, so it cannot add HTML, links or table cells.
+ * The output length is not bounded: GitHub rejects comment bodies over 65,536
+ * characters, so callers that post it must check the length (or lower the limits).
  */
 export function renderMarkdown(report: Report, options: MarkdownOptions = {}): string {
   const maxFindings = positiveInt('maxFindings', options.maxFindings ?? 50);
@@ -83,7 +85,10 @@ function details(finding: Finding, maxSnippetLines: number): string {
   if (finding.message.trim() !== '') lines.push(escapeBlock(finding.message), '');
   for (const span of finding.evidence) {
     lines.push(`**${location([span])}**`, '');
-    if (span.snippet !== undefined && span.snippet !== '') lines.push(codeBlock(span.snippet, maxSnippetLines), '');
+    // A whitespace-only snippet would render as an empty code block.
+    if (span.snippet !== undefined && span.snippet.trim() !== '') {
+      lines.push(codeBlock(span.snippet, maxSnippetLines), '');
+    }
   }
   if (finding.links.length > 0) {
     lines.push(finding.links.map((link) => `- ${linkFor(link)}`).join('\n'), '');
@@ -144,9 +149,10 @@ const BLOCK_START = /^(?:([#+\-=])|(\d+)([.)]))/;
 
 /**
  * Escapes untrusted text for inline Markdown, such as a table cell: newlines become
- * spaces, `<`, `>` and `&` become HTML entities, Markdown punctuation gets a backslash
- * and `@` gets a zero-width space so the text cannot mention (notify) users.
- * The result cannot open HTML tags, comments, links or new table cells.
+ * spaces, `<`, `>` and `&` become HTML entities, Markdown punctuation gets a backslash,
+ * and `@`, `://` and `www.` get a zero-width space so the text cannot mention (notify)
+ * users or become a GFM autolink.
+ * The result cannot open HTML tags, comments, links (including bare URLs) or new table cells.
  */
 export function escapeText(text: string): string {
   return text
@@ -155,6 +161,8 @@ export function escapeText(text: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/@/g, '@&#8203;')
+    .replace(/:\/\//g, ':&#8203;//')
+    .replace(/(www)\./gi, '$1&#8203;.')
     .replace(INLINE_SPECIAL, (ch) => `\\${ch}`);
 }
 

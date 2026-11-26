@@ -82,11 +82,40 @@ test('escapeText neutralises pipes, backticks, HTML, links and mentions', () => 
   assert.equal(escapeText('a|b'), 'a\\|b');
   assert.equal(escapeText('use `rm -rf`'), 'use \\`rm -rf\\`');
   assert.equal(escapeText('<!-- x --> <img src=x>'), '&lt;!-- x --&gt; &lt;img src=x&gt;');
-  assert.equal(escapeText('[click](https://evil.example)'), '\\[click\\](https://evil.example)');
+  assert.equal(escapeText('[click](https://evil.example)'), '\\[click\\](https:&#8203;//evil.example)');
   assert.equal(escapeText('ping @octocat'), 'ping @&#8203;octocat');
   assert.equal(escapeText('two\nlines'), 'two lines');
   assert.equal(escapeText('**bold** ~~gone~~ _em_'), '\\*\\*bold\\*\\* \\~\\~gone\\~\\~ \\_em\\_');
   assert.equal(escapeText('a & b'), 'a &amp; b');
+});
+
+test('escapeText stops bare URLs from becoming GFM autolinks', () => {
+  assert.equal(escapeText('log in at https://evil.example/x'), 'log in at https:&#8203;//evil.example/x');
+  assert.equal(escapeText('or HTTP://evil.example'), 'or HTTP:&#8203;//evil.example');
+  assert.equal(escapeText('see www.evil.example and WWW.Evil.example'), 'see www&#8203;.evil.example and WWW&#8203;.Evil.example');
+  assert.equal(escapeText('_www.evil.example_'), '\\_www&#8203;.evil.example\\_');
+  assert.equal(escapeText('a: b, c:/d, wwwx.y'), 'a: b, c:/d, wwwx.y');
+});
+
+test('a bare URL in a message or summary is not left linkable', () => {
+  const body = renderMarkdown({
+    ...sample,
+    summary: 'Go to https://evil.example',
+    findings: [finding({ title: 'www.evil.example', message: 'Visit http://evil.example/login now' })],
+  });
+  // The <summary> line is raw HTML, where GitHub does not autolink, so only Markdown lines are checked.
+  const markdownLines = body.split('\n').filter((line) => !line.startsWith('<summary>'));
+  assert.ok(markdownLines.every((line) => !/https?:\/\/evil|www\.evil/.test(line)));
+  assert.ok(markdownLines.some((line) => line.includes('www&#8203;.evil.example')));
+});
+
+test('a whitespace-only snippet renders no code block', () => {
+  const body = renderMarkdown({
+    ...sample,
+    findings: [finding({ evidence: [{ file: 'a.ts', startLine: 2, endLine: 2, snippet: ' \n\n' }] })],
+  });
+  assert.ok(body.includes('**a.ts:2**\n\nConfidence 50%.'));
+  assert.ok(!body.includes('```'));
 });
 
 test('escapeBlock keeps lines but stops headings, lists and code blocks', () => {

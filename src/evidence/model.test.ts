@@ -134,3 +134,20 @@ test('parseReport rejects non-objects', () => {
     assert.equal(result.error[0]?.code, 'invalid_type');
   }
 });
+
+test('parseReport rejects oversized message, summary and snippet', () => {
+  const big = 'x'.repeat(20_001);
+  const result = parseReport(
+    report({
+      summary: big,
+      findings: [finding({ message: big, evidence: [{ file: 'a', startLine: 1, endLine: 1, snippet: big }] })],
+    }),
+  );
+  assert.ok(!result.ok);
+  assert.deepEqual(
+    result.error.map((issue) => `${issue.path} ${issue.code}`),
+    ['findings[0].message too_big', 'findings[0].evidence[0].snippet too_big', 'summary too_big'],
+  );
+  const atLimit = parseReport(report({ summary: 'x'.repeat(10_000), findings: [finding({ message: 'x'.repeat(10_000) })] }));
+  assert.ok(atLimit.ok);
+});

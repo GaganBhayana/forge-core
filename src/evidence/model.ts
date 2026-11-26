@@ -19,7 +19,7 @@ export const evidenceSpanSchema = object({
   file: string({ min: 1, max: 4096 }),
   startLine: lineNumber,
   endLine: lineNumber,
-  snippet: optional(string()),
+  snippet: optional(string({ max: 20_000 })),
 });
 
 /** Schema for {@link FindingLink}. Only `http` and `https` URLs are accepted. */
@@ -35,7 +35,7 @@ export const findingSchema = object({
   title: string({ min: 1, max: 500 }),
   severity: enumOf(SEVERITIES),
   confidence: number({ min: 0, max: 1 }),
-  message: string(),
+  message: string({ max: 10_000 }),
   evidence: array(evidenceSpanSchema),
   links: array(findingLinkSchema),
 });
@@ -55,7 +55,7 @@ export const reportSchema = object({
   version: string({ min: 1, max: 100 }),
   subject: reportSubjectSchema,
   findings: array(findingSchema),
-  summary: string(),
+  summary: string({ max: 10_000 }),
   generatedAt: string({ min: 1, max: 100 }),
 });
 
