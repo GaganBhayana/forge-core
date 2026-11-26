@@ -33,7 +33,7 @@ Status values: `todo`, `review (PR #n)`, `done (PR #n)`, `blocked: <reason>`. Si
 - Acceptance: table-driven tests for every builder, nested paths in issues, and a type-level test file that type-checks inferred types.
 
 ### FC-005 Evidence model and Markdown renderer
-- Status: review (PR #5)
+- Status: done (PR #5)
 - Size: M
 - Depends on: FC-004
 - Goal: `src/evidence/model.ts`: `Finding` (id, ruleId, title, severity `info|low|medium|high|critical`, confidence 0–1, message, evidence spans `{file, startLine, endLine, snippet?}`, links), `Report` (tool, version, subject, findings, summary, generatedAt). `src/evidence/markdown.ts` renders a PR-comment-ready report: summary line, a table sorted by severity, collapsible details per finding, and a hidden HTML marker so a later run can update the same comment.
