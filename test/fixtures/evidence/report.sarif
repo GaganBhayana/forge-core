@@ -1,0 +1,134 @@
+{
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "proof",
+          "version": "0.1.0",
+          "rules": [
+            {
+              "id": "secrets/token",
+              "shortDescription": {
+                "text": "Possible token in source"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "tests/missing",
+              "shortDescription": {
+                "text": "No tests for changed code"
+              },
+              "helpUri": "https://example.com/rules/tests-missing",
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "style/naming",
+              "shortDescription": {
+                "text": "Unclear name"
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "secrets/token",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "A string looks like a GitHub token."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "config/dev.ts"
+                },
+                "region": {
+                  "startLine": 3,
+                  "endLine": 3,
+                  "snippet": {
+                    "text": "const token = \"ghp_xxx\";"
+                  }
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "config/prod.ts"
+                },
+                "region": {
+                  "startLine": 7,
+                  "endLine": 8
+                }
+              }
+            }
+          ],
+          "properties": {
+            "findingId": "secret-1",
+            "severity": "critical",
+            "confidence": 0.95
+          }
+        },
+        {
+          "ruleId": "tests/missing",
+          "ruleIndex": 1,
+          "level": "warning",
+          "message": {
+            "text": "src/a.ts changed but no test file did."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/a.ts"
+                },
+                "region": {
+                  "startLine": 10,
+                  "endLine": 14
+                }
+              }
+            }
+          ],
+          "properties": {
+            "findingId": "tests-1",
+            "severity": "medium",
+            "confidence": 0.8
+          }
+        },
+        {
+          "ruleId": "style/naming",
+          "ruleIndex": 2,
+          "level": "note",
+          "message": {
+            "text": "Unclear name"
+          },
+          "properties": {
+            "findingId": "style-1",
+            "severity": "info",
+            "confidence": 0.3
+          }
+        }
+      ],
+      "properties": {
+        "subject": {
+          "kind": "pull_request",
+          "name": "octo/repo#12",
+          "url": "https://github.com/octo/repo/pull/12"
+        },
+        "summary": "Checked 3 files.",
+        "generatedAt": "2026-11-27T04:10:00.000Z"
+      }
+    }
+  ]
+}
