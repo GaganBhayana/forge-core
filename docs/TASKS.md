@@ -40,7 +40,7 @@ Status values: `todo`, `review (PR #n)`, `done (PR #n)`, `blocked: <reason>`. Si
 - Acceptance: snapshot-style tests on fixed input; Markdown escapes pipes and backticks in user content.
 
 ### FC-006 SARIF 2.1.0 renderer
-- Status: todo
+- Status: review
 - Size: M
 - Depends on: FC-005
 - Goal: `src/evidence/sarif.ts` converts a `Report` to SARIF 2.1.0 (tool driver, rules from findings, results with locations and levels mapped from severity).
