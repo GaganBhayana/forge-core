@@ -107,6 +107,9 @@ export function sarifLevel(severity: Severity): SarifLevel {
  *
  * Text is copied as data (JSON escaping makes it safe). Curly braces in result messages
  * are doubled, because SARIF reads `{0}` in a message as an argument placeholder.
+ *
+ * The report is expected to be valid (see `validateReport`): a reversed line range is
+ * clamped, but other invalid values, such as `startLine: 0`, are copied as they are.
  */
 export function toSarif(report: Report): SarifLog {
   const findings = sortFindings(report.findings);
@@ -180,14 +183,15 @@ function toLocation(span: EvidenceSpan): SarifLocation {
 
 /**
  * Turns a repository path into a relative URI reference, as SARIF requires:
- * backslashes become `/`, a leading `./` is dropped, and each segment is
- * percent-encoded so spaces, `#`, `?` and `%` cannot change the URI's meaning.
+ * backslashes become `/`, empty and `.` segments are dropped (so a leading `/`,
+ * `//` or `./` cannot make an absolute-path or network-path reference), and each
+ * segment is percent-encoded so spaces, `#`, `?` and `%` cannot change the URI's meaning.
  */
 export function artifactUri(file: string): string {
   return file
     .replace(/\\/g, '/')
-    .replace(/^(?:\.\/)+/, '')
     .split('/')
+    .filter((segment) => segment !== '' && segment !== '.')
     .map((segment) => encodeURIComponent(segment))
     .join('/');
 }

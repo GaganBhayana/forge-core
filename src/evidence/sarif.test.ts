@@ -245,11 +245,27 @@ test('artifactUri makes a relative URI reference from a path', () => {
   assert.equal(artifactUri('docs/my file#1?.md'), 'docs/my%20file%231%3F.md');
   assert.equal(artifactUri('100%/x.ts'), '100%25/x.ts');
   assert.equal(artifactUri('src/naïve.ts'), 'src/na%C3%AFve.ts');
-  // Every output must parse as a URL relative to a base, staying a path.
-  for (const path of ['a b/c', 'x#y', 'q?r', '%', ':colon/x']) {
+  assert.equal(artifactUri('/etc/passwd'), 'etc/passwd');
+  assert.equal(artifactUri('//evil.com/x'), 'evil.com/x');
+  assert.equal(artifactUri('\\\\server\\share\\x'), 'server/share/x');
+  assert.equal(artifactUri('a//b/./c/'), 'a/b/c');
+  // Every output must parse as a URL relative to a base, staying a path under it.
+  const cases: [string, string][] = [
+    ['a b/c', 'a b/c'],
+    ['x#y', 'x#y'],
+    ['q?r', 'q?r'],
+    ['%', '%'],
+    [':colon/x', ':colon/x'],
+    ['/etc/passwd', 'etc/passwd'],
+    ['//evil.com/x', 'evil.com/x'],
+    ['a//b', 'a/b'],
+  ];
+  for (const [path, expected] of cases) {
     const uri = artifactUri(path);
     assert.ok(URL.canParse(uri, 'file:///repo/'), uri);
-    assert.equal(decodeURIComponent(new URL(uri, 'file:///repo/').pathname), `/repo/${path}`);
+    const resolved = new URL(uri, 'file:///repo/');
+    assert.equal(resolved.host, '', `${uri} must not name a host`);
+    assert.equal(decodeURIComponent(resolved.pathname), `/repo/${expected}`);
   }
 });
 
