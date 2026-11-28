@@ -1,8 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isForgeError } from '../util/errors.ts';
+import { isForgeError, type ForgeError } from '../util/errors.ts';
 import type { Result } from '../util/result.ts';
-import type { ForgeError } from '../util/errors.ts';
 import { SIGNATURE_HEADER, signBody, verifySignature, type HeaderValue } from './webhook.ts';
 
 // The example from GitHub's "Validating webhook deliveries" docs.
@@ -97,4 +96,36 @@ test('an empty secret is a programmer error', () => {
 test('verifies an empty body', () => {
   assert.equal(verifySignature(SECRET, '', signBody(SECRET, '')).ok, true);
   assert.equal(reasonOf(verifySignature(SECRET, '', SIGNATURE)), 'mismatch');
+});
+
+test('a non-ASCII body verifies the same as a string and as its UTF-8 bytes', () => {
+  const text = '{"title":"Café ☕ – naïve 🚀"}';
+  const bytes = new TextEncoder().encode(text);
+  const header = signBody(SECRET, bytes);
+  assert.equal(signBody(SECRET, text), header);
+  assert.equal(verifySignature(SECRET, text, header).ok, true);
+  assert.equal(verifySignature(SECRET, bytes, header).ok, true);
+  // The same bytes decoded as latin1 are a different string, so they must not verify.
+  const latin1 = Buffer.from(bytes).toString('latin1');
+  assert.equal(reasonOf(verifySignature(SECRET, latin1, header)), 'mismatch');
+});
+
+test('accepts a Uint8Array view that does not start at offset 0', () => {
+  const padded = new TextEncoder().encode('xx' + BODY + 'yy');
+  const view = padded.subarray(2, 2 + BODY.length);
+  assert.equal(verifySignature(SECRET, view, SIGNATURE).ok, true);
+});
+
+test('the length cap counts surrounding whitespace, up to 256 characters', () => {
+  const pad = (total: number) => SIGNATURE + ' '.repeat(total - SIGNATURE.length);
+  assert.equal(pad(256).length, 256);
+  assert.equal(verifySignature(SECRET, BODY, pad(256)).ok, true);
+  assert.equal(reasonOf(verifySignature(SECRET, BODY, pad(257))), 'malformed');
+});
+
+test('a header that is neither a string nor an array is malformed', () => {
+  const odd = [42, { 0: SIGNATURE, length: 1 }, [42]] as unknown as HeaderValue[];
+  for (const header of odd) {
+    assert.equal(reasonOf(verifySignature(SECRET, BODY, header)), 'malformed', JSON.stringify(header));
+  }
 });

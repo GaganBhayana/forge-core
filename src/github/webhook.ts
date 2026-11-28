@@ -13,15 +13,21 @@ export type HeaderValue = string | readonly string[] | null | undefined;
 
 const PREFIX = 'sha256=';
 const HEX_DIGEST = /^[0-9a-fA-F]{64}$/;
-/** Longer than any valid header; checked before any other parsing. */
+/**
+ * Longer than any valid header. Checked before any other parsing, so
+ * surrounding whitespace counts towards it.
+ */
 const MAX_HEADER_LENGTH = 256;
 
 /**
  * Verifies a GitHub webhook signature (`x-hub-signature-256`).
  *
  * `rawBody` must be the exact bytes GitHub sent, before any JSON parsing:
- * re-serialised JSON will not match. A string body is encoded as UTF-8.
- * The digests are compared with `timingSafeEqual`.
+ * re-serialised JSON will not match. Pass the raw request as a `Uint8Array`
+ * where you can. A string body is encoded as UTF-8, so it only matches if it
+ * is the exact UTF-8 decoding of those bytes; a body decoded as latin1, or
+ * with invalid sequences replaced, will not. The digests are compared with
+ * `timingSafeEqual`.
  *
  * Returns `ok(true)` for a valid signature, otherwise an `UNAUTHORIZED`
  * error whose `details.reason` is `missing`, `malformed` or `mismatch`.
@@ -56,10 +62,13 @@ function parseSignatureHeader(header: HeaderValue): Result<Buffer, ForgeError> {
   if (header === undefined || header === null) {
     return failure('missing', `Missing ${SIGNATURE_HEADER} header.`);
   }
-  if (typeof header !== 'string') {
+  if (Array.isArray(header)) {
     if (header.length === 0) return failure('missing', `Missing ${SIGNATURE_HEADER} header.`);
     if (header.length > 1) return failure('malformed', `Repeated ${SIGNATURE_HEADER} header.`);
     return parseSignatureHeader(header[0]);
+  }
+  if (typeof header !== 'string') {
+    return failure('malformed', `${SIGNATURE_HEADER} header must be a string.`);
   }
   if (header.length > MAX_HEADER_LENGTH) {
     return failure('malformed', `${SIGNATURE_HEADER} header is too long.`);
