@@ -9,3 +9,4 @@ export * from './util/clock.ts';
 export * from './util/retry.ts';
 export * as schema from './schema/index.ts';
 export * as evidence from './evidence/index.ts';
+export * as github from './github/index.ts';
