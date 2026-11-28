@@ -47,7 +47,7 @@ Status values: `todo`, `review (PR #n)`, `done (PR #n)`, `blocked: <reason>`. Si
 - Acceptance: output validates against the required SARIF fields (tests check structure), and severities map to `note|warning|error` correctly.
 
 ### FC-007 Webhook signature verification
-- Status: todo
+- Status: done (PR #7)
 - Size: S
 - Depends on: FC-001
 - Goal: `src/github/webhook.ts`: `verifySignature(secret, rawBody, signatureHeader)` using HMAC SHA-256 and `timingSafeEqual`; rejects missing, malformed or wrong-length headers.
